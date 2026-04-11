@@ -2,3 +2,7 @@ node_modules/
 dist/
 .env
 *.log
+.gemini/
+.DS_Store
+*.js.map
+*.d.ts

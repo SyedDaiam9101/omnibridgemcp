@@ -5,6 +5,8 @@ import { z } from 'zod';
  * We restrict images to an allowlist to prevent supply-chain attacks.
  */
 export const DockerExecutionOptionsSchema = z.object({
+  sessionId: z.string().describe("The active session ID"),
+  
   image: z.enum(['node:20-slim', 'python:3.12-slim', 'rust:1.78-slim', 'alpine:latest'])
     .default('node:20-slim')
     .describe("The hardened runtime environment for execution"),
