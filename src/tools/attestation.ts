@@ -1,0 +1,1 @@
+// attestation_verify tool registration

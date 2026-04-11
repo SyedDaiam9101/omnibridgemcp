@@ -1,0 +1,1 @@
+# stdio vs Streamable HTTP
