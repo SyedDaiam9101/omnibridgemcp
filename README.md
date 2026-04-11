@@ -1,7 +1,30 @@
-# OmniBridge — Project Documentation
+<p align="center">
+  <img src="https://github.com/SyedDaiam9101/omnibridgemcp/actions/workflows/ci.yml/badge.svg" alt="Build Status">
+  <img src="https://img.shields.io/github/license/SyedDaiam9101/omnibridgemcp?style=for-the-badge" alt="License">
+  <img src="https://img.shields.io/github/stars/SyedDaiam9101/omnibridgemcp?style=for-the-badge" alt="Stars">
+  <img src="https://img.shields.io/github/last-commit/SyedDaiam9101/omnibridgemcp?style=for-the-badge" alt="Last Commit">
+</p>
 
-> **The Definitive Execution Layer for AI Agents in 2026**
-> An MCP server that gives AI agents a safe, verifiable space to run, test, and prove their solutions before they ever touch production.
+<p align="center">
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript">
+  <img src="https://img.shields.io/badge/Node.js-22-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js">
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker">
+  <img src="https://img.shields.io/badge/gVisor-Hardened-brightgreen?style=for-the-badge" alt="gVisor">
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/MCP-Protocol-blue?style=for-the-badge" alt="MCP">
+  <img src="https://img.shields.io/badge/Security-Isolated-red?style=for-the-badge" alt="Security">
+  <img src="https://img.shields.io/badge/PRs-Welcome-brightgreen?style=for-the-badge" alt="PRs Welcome">
+</p>
+
+<p align="center">
+  <strong>The Definitive Execution Layer for AI Agents in 2026</strong>
+</p>
+
+<p align="center">
+  OmniBridge provides a stateful, verifiable orchestration layer for AI agents. It gives them a safe, gVisor-isolated space to run, test, and prove their code works—before they ever touch your production infrastructure.
+</p>
 
 ---
 
