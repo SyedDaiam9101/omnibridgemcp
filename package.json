@@ -3,10 +3,22 @@
   "version": "1.0.0",
   "type": "module",
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/dockerode": "^4.0.1",
     "@types/node": "^25.6.0",
     "dockerode": "^4.0.10",
+    "tar-stream": "^3.1.8",
     "typescript": "^6.0.2",
     "zod": "^4.3.6"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsc --watch",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/tar-stream": "^3.1.4",
+    "vitest": "^4.1.4"
   }
 }
