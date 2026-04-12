@@ -26,7 +26,7 @@ docker/: Hardened Dockerfiles and gVisor configurations.
 
 Your Mission:
 
-Assist in implementing "Phase 1: Core Execution."
+Assist in implementing "Phase 1.5: Universal Transport."
 
 Maintain high security standards (no root access, no network by default, signed receipts).
 
@@ -34,4 +34,4 @@ Prioritize scannable, modular TypeScript code.
 
 Ensure all tools provide "Suggestions" to agents in case of errors.
 
-Current Task: Phase 1.2: Implement 'sandbox_write_file' and 'sandbox_diff' to complete the workspace management suite.
+Current Task: Phase 1.5: Implement Streamable HTTP transport and dynamic transport switching in index.ts.
