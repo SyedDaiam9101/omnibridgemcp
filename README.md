@@ -49,7 +49,12 @@ cp .env.example .env
     "omnibridge": {
       "command": "node",
       "args": ["/path/to/omnibridgemcp/dist/index.js"],
-      "env": { "HMAC_SECRET": "your-secret-key-here" }
+      "env": { 
+        "HMAC_SECRET": "your-secret-key-here",
+        "CONTAINER_MEMORY_LIMIT": "512m",
+        "CONTAINER_CPU_LIMIT": "1.0",
+        "DOCKER_RUNTIME": "runc" 
+      }
     }
   }
 }
@@ -95,11 +100,11 @@ The bottleneck in AI-assisted development is no longer generating code — it is
 
 ### The Three Pillars
 
-| Pillar               | What It Does                                | Why It Matters                                               |
-| -------------------- | ------------------------------------------- | ------------------------------------------------------------ |
-| Safety-First Sandbox | Ephemeral Docker + gVisor containers        | Agents run code without touching local or production systems |
-| Universal Transport  | stdio and Streamable HTTP in one binary     | Works in every client — terminal, IDE, cloud dashboard       |
-| Tamper-Evident Audit | HMAC-SHA256 signed execution receipts       | Every run is independently verifiable after the fact         |
+| Pillar               | What It Does                            | Why It Matters                                               |
+| -------------------- | --------------------------------------- | ------------------------------------------------------------ |
+| Safety-First Sandbox | Ephemeral Docker + gVisor containers    | Agents run code without touching local or production systems |
+| Universal Transport  | stdio and Streamable HTTP in one binary | Works in every client — terminal, IDE, cloud dashboard       |
+| Tamper-Evident Audit | HMAC-SHA256 signed execution receipts   | Every run is independently verifiable after the fact         |
 
 ### Who Is This For?
 
@@ -428,7 +433,7 @@ The HMAC signing key can be rotated without downtime using the included `scripts
 | ------------------------- | -------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `MCP_TRANSPORT`           | No       | `stdio`                                        | Set to `http` to enable Streamable HTTP mode.                                                                   |
 | `PORT`                    | No       | `3000`                                         | HTTP port when running in HTTP transport mode.                                                                  |
-| `HMAC_SECRET`             | Yes      | —                                              | HMAC-SHA256 signing key for audit receipts. Must be at least 32 characters. Never commit this value.           |
+| `HMAC_SECRET`             | Yes      | —                                              | HMAC-SHA256 signing key for audit receipts. Must be at least 32 characters. Never commit this value.            |
 | `SERVER_ID`               | No       | hostname                                       | Identifier embedded in receipts to identify the OmniBridge instance.                                            |
 | `ALLOWED_IMAGES`          | No       | `node:20-slim,python:3.12-slim,rust:1.78-slim` | Comma-separated list of Docker images agents may request.                                                       |
 | `DEFAULT_TTL_SECONDS`     | No       | `120`                                          | Default container lifetime if the agent does not specify one.                                                   |
