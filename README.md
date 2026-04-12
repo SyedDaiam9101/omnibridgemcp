@@ -19,12 +19,46 @@
 </p>
 
 <p align="center">
-  <strong>The Definitive Execution Layer for AI Agents in 2026</strong>
+  <strong>MCP-compatible sandboxed execution layer for AI agents with tamper-evident audit receipts</strong>
 </p>
 
 <p align="center">
-  OmniBridge provides a stateful, verifiable orchestration layer for AI agents. It gives them a safe, gVisor-isolated space to run, test, and prove their code works—before they ever touch your production infrastructure.
+  OmniBridge is a Model Context Protocol server that gives AI agents an isolated, gVisor-hardened environment to run and verify their code — and produces a signed receipt for every execution so you know exactly what ran, where, and what it produced.
 </p>
+
+---
+
+## Quick Start
+
+> **Prerequisites:** Docker Engine 24.0+, Node.js 20+, gVisor (`runsc`) on the host. For local dev without gVisor, use the dev override — see [Deployment Guide](#12-deployment-guide).
+
+```bash
+# 1. Clone and install
+git clone https://github.com/SyedDaiam9101/omnibridgemcp.git
+cd omnibridgemcp
+npm install && npm run build
+
+# 2. Configure
+cp .env.example .env
+# Set HMAC_SECRET to a random string of 32+ characters in .env
+
+# 3. Add to Claude Desktop (stdio mode)
+# In claude_desktop_config.json:
+{
+  "mcpServers": {
+    "omnibridge": {
+      "command": "node",
+      "args": ["/path/to/omnibridgemcp/dist/index.js"],
+      "env": { "HMAC_SECRET": "your-secret-key-here" }
+    }
+  }
+}
+
+# 4. Or run as an HTTP server (cloud agents)
+MCP_TRANSPORT=http PORT=3000 HMAC_SECRET=your-secret node dist/index.js
+```
+
+Once connected, your agent can call `sandbox_create` → `sandbox_exec` → `sandbox_destroy`. Every `sandbox_exec` returns a signed receipt alongside the output.
 
 ---
 
@@ -53,11 +87,11 @@
 
 ### What is OmniBridge?
 
-OmniBridge is a high-utility **Model Context Protocol (MCP) server** that functions as the definitive execution layer for AI agents. While most MCP servers in the 2026 ecosystem focus on reading documentation or writing code, OmniBridge solves the harder problem: giving agents a safe, isolated environment where they can **actually run and verify their work** before it reaches production.
+OmniBridge is a **Model Context Protocol (MCP) server** that functions as a sandboxed execution layer for AI agents. While most MCP servers focus on reading documentation or writing code, OmniBridge solves the harder problem: giving agents a safe, isolated environment where they can **actually run and verify their work** before it reaches production.
 
 ### The Problem It Solves
 
-By mid-2026, the bottleneck in AI-assisted development is no longer generating code — it is **trusting the output**. Agents today can write a database migration, a deployment script, or a security patch, but there is no standard, verifiable way to prove that the code actually does what it claims before a human merges it. OmniBridge closes this gap.
+The bottleneck in AI-assisted development is no longer generating code — it is **trusting the output**. Agents can write a database migration, a deployment script, or a security patch, but there is no standard, verifiable way to prove that the code actually does what it claims before a human merges it. OmniBridge closes this gap.
 
 ### The Three Pillars
 
@@ -65,11 +99,11 @@ By mid-2026, the bottleneck in AI-assisted development is no longer generating c
 | -------------------- | ------------------------------------------- | ------------------------------------------------------------ |
 | Safety-First Sandbox | Ephemeral Docker + gVisor containers        | Agents run code without touching local or production systems |
 | Universal Transport  | stdio and Streamable HTTP in one binary     | Works in every client — terminal, IDE, cloud dashboard       |
-| Verified Attestation | Cryptographically signed execution receipts | Every run is auditable, provable, and compliance-ready       |
+| Tamper-Evident Audit | HMAC-SHA256 signed execution receipts       | Every run is independently verifiable after the fact         |
 
 ### Who Is This For?
 
-OmniBridge is designed for **10x engineering teams** who are integrating AI agents into their deployment pipelines, CI/CD workflows, and infrastructure automation. It is specifically built for teams operating in regulated environments where **every autonomous action must be auditable**.
+OmniBridge is designed for engineering teams integrating AI agents into deployment pipelines, CI/CD workflows, and infrastructure automation — particularly teams where autonomous agent actions need to be reviewable and reproducible.
 
 ---
 
@@ -188,7 +222,7 @@ omnibridge-mcp-server/
            ┌──────────▼──────────────────────┐
            │   Docker Client                 │
            │   gVisor runtime (runsc)        │  ← Kernel-isolated container
-           │   Hardened image               │
+           │   Hardened image                │
            └─────────────────────────────────┘
 ```
 
@@ -237,9 +271,9 @@ The tool logic — every Zod schema, every service call, every attestation recei
 
 **Streamable HTTP mode** activates when the `MCP_TRANSPORT=http` environment variable is set. The server binds to a configurable port and handles each POST to `/mcp` as a stateless request. This mode is appropriate for cloud-hosted agents, browser-based IDEs, and enterprise dashboards.
 
-### Pillar 3 — Verified Execution Attestation
+### Pillar 3 — Tamper-Evident Audit Receipts
 
-Every `sandbox_exec` response includes a **cryptographically signed receipt** alongside the command output. The receipt is a JSON object that records exactly what ran, where it ran, and what the output was, signed with an HMAC-SHA256 key held by the server operator.
+Every `sandbox_exec` response includes an **HMAC-SHA256 signed receipt** alongside the command output. The receipt records exactly what ran, where it ran, and what the output was. This is not hardware-backed attestation — it is a tamper-evident audit log: any modification to the receipt body after the fact invalidates the signature.
 
 **Receipt Fields:**
 
@@ -256,9 +290,9 @@ Every `sandbox_exec` response includes a **cryptographically signed receipt** al
 | `server_id`    | Identifier of the OmniBridge instance that produced this receipt |
 | `signature`    | HMAC-SHA256 of all above fields in canonical JSON order          |
 
-**Why this matters for regulated environments:**
+**What the receipt tells a reviewer:**
 
-The receipt answers three auditor questions that no other MCP server currently answers: (1) Did the AI actually run this code, or is it claiming to? (2) Was the code run in an approved, known environment? (3) Did the output match what the agent reported? Each receipt is independently verifiable by anyone with the public HMAC key.
+Did the agent actually run this code, or is it claiming to? Was the code run against a known, approved image? Did the output match what the agent reported? Each receipt is independently verifiable by anyone with the HMAC key — useful for post-incident review, CI gates, and team audit logs.
 
 ---
 
@@ -287,7 +321,7 @@ Creates a new ephemeral sandbox container and returns a `session_id` for use in 
 
 ### `sandbox_exec`
 
-Executes a shell command inside an existing sandbox. Always returns both the command output and a signed attestation receipt.
+Executes a shell command inside an existing sandbox. Always returns both the command output and a signed receipt.
 
 **Parameters:**
 
@@ -356,7 +390,7 @@ Explicitly destroys a sandbox before its TTL expires. Should always be called wh
 
 ### `attestation_verify`
 
-Verifies that a previously returned receipt is authentic and untampered. Designed for use by downstream CI systems, compliance pipelines, or human reviewers.
+Verifies that a previously returned receipt is authentic and untampered. Designed for use by downstream CI systems or human reviewers.
 
 **Parameters:**
 
@@ -394,7 +428,7 @@ The HMAC signing key can be rotated without downtime using the included `scripts
 | ------------------------- | -------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `MCP_TRANSPORT`           | No       | `stdio`                                        | Set to `http` to enable Streamable HTTP mode.                                                                   |
 | `PORT`                    | No       | `3000`                                         | HTTP port when running in HTTP transport mode.                                                                  |
-| `HMAC_SECRET`             | Yes      | —                                              | HMAC-SHA256 signing key for attestation receipts. Must be at least 32 characters. Never commit this value.      |
+| `HMAC_SECRET`             | Yes      | —                                              | HMAC-SHA256 signing key for audit receipts. Must be at least 32 characters. Never commit this value.           |
 | `SERVER_ID`               | No       | hostname                                       | Identifier embedded in receipts to identify the OmniBridge instance.                                            |
 | `ALLOWED_IMAGES`          | No       | `node:20-slim,python:3.12-slim,rust:1.78-slim` | Comma-separated list of Docker images agents may request.                                                       |
 | `DEFAULT_TTL_SECONDS`     | No       | `120`                                          | Default container lifetime if the agent does not specify one.                                                   |
@@ -498,7 +532,7 @@ Receipts can be verified in two ways.
 
 **Via the `attestation_verify` MCP tool.** Pass the receipt object back to the tool. OmniBridge recomputes the signature from the receipt fields and compares it to the stored signature. This is the recommended approach for agent-to-agent workflows.
 
-**Offline verification.** Operators with the HMAC key can verify receipts independently using the `scripts/inspect-receipt.ts` CLI tool. This is appropriate for compliance audits and post-incident investigations.
+**Offline verification.** Operators with the HMAC key can verify receipts independently using the `scripts/inspect-receipt.ts` CLI tool. This is appropriate for post-incident investigations and manual audits.
 
 ### Integrating with Audit Pipelines
 
@@ -593,7 +627,7 @@ An agent that has generated a Python module would use OmniBridge like this:
 
 - Docker + gVisor sandbox lifecycle management
 - Five core tools: `sandbox_create`, `sandbox_exec`, `sandbox_write_file`, `sandbox_diff`, `sandbox_destroy`
-- HMAC-SHA256 attestation receipts
+- HMAC-SHA256 audit receipts
 - Protocol-agnostic transport (stdio and Streamable HTTP)
 - TTL watchdog for automatic cleanup
 - Per-container resource limits
@@ -644,7 +678,3 @@ All new tools must include a Zod schema, a complete tool description with input/
 OmniBridge is released under the MIT License. See `LICENSE` for full terms.
 
 The gVisor runtime (`runsc`) is a separate project released under the Apache 2.0 License. It is not bundled with OmniBridge — it must be installed separately on the host.
-
----
-
-*Built for the 2026 AI-agent ecosystem. The bottleneck is no longer writing code — it is trusting it.*
