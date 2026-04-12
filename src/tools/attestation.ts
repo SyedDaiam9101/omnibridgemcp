@@ -14,7 +14,18 @@ export function registerAttestationTools(server: McpServer, attestationService: 
     AttestationVerifySchema.shape,
     async (args) => {
       try {
-        const isValid = attestationService.verifyReceipt(args.receipt, args.signature);
+        // Robustness Move: Extract receipt/signature whether passed as siblings 
+        // or as part of a nested 'attestation' object.
+        let receipt = args.receipt;
+        let signature = args.signature;
+
+        // If 'receipt' itself contains a signature, it's likely the whole attestation object
+        if (receipt && receipt.receipt && receipt.signature) {
+          signature = receipt.signature;
+          receipt = receipt.receipt;
+        }
+
+        const isValid = attestationService.verifyReceipt(receipt, signature);
         
         return {
           content: [
@@ -22,7 +33,7 @@ export function registerAttestationTools(server: McpServer, attestationService: 
               type: "text", 
               text: JSON.stringify({ 
                 valid: isValid,
-                message: isValid ? "Receipt is authentic." : "Receipt has been tampered with or used with an invalid key."
+                message: isValid ? "Receipt is authentic." : "Receipt signature mismatch or invalid key."
               }, null, 2) 
             }
           ],
