@@ -1,0 +1,53 @@
+name: 'OmniBridge Sandbox Execute'
+description: 'Run code in an OmniBridge gVisor-isolated sandbox and get a signed attestation receipt.'
+author: 'OmniBridge'
+
+inputs:
+  omnibridge_url:
+    description: 'The base URL of the OmniBridge server (e.g., http://localhost:3000)'
+    required: true
+  auth_token:
+    description: 'Bearer token for authenticating with the OmniBridge HTTP transport'
+    required: false
+    default: ''
+  image:
+    description: 'Docker image to use for the sandbox'
+    required: false
+    default: 'node:20-slim'
+  command:
+    description: 'The command to execute inside the sandbox (JSON array, e.g., ["node", "-e", "console.log(1)"])'
+    required: true
+  timeout:
+    description: 'Execution timeout in milliseconds'
+    required: false
+    default: '30000'
+
+outputs:
+  exit_code:
+    description: 'Exit code from the sandbox execution'
+    value: ${{ steps.execute.outputs.exit_code }}
+  stdout:
+    description: 'Standard output from the execution'
+    value: ${{ steps.execute.outputs.stdout }}
+  attestation_signature:
+    description: 'HMAC-SHA256 signed attestation receipt'
+    value: ${{ steps.execute.outputs.attestation_signature }}
+  session_id:
+    description: 'The sandbox session ID used for this execution'
+    value: ${{ steps.execute.outputs.session_id }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Execute in OmniBridge Sandbox
+      id: execute
+      shell: bash
+      env:
+        OMNIBRIDGE_URL: ${{ inputs.omnibridge_url }}
+        AUTH_TOKEN: ${{ inputs.auth_token }}
+        IMAGE: ${{ inputs.image }}
+        COMMAND: ${{ inputs.command }}
+        TIMEOUT: ${{ inputs.timeout }}
+      run: |
+        chmod +x ${{ github.action_path }}/entrypoint.sh
+        ${{ github.action_path }}/entrypoint.sh

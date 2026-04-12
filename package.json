@@ -1,6 +1,6 @@
 {
   "name": "omnibridge-mcp",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
@@ -15,12 +15,14 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "test:integration": "start-server-and-test start http://localhost:3000/ 'node scripts/test-phase2.cjs'",
     "dev": "tsc --watch",
     "test": "vitest run"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/tar-stream": "^3.1.4",
+    "start-server-and-test": "^2.1.5",
     "vitest": "^4.1.4"
   }
 }

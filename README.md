@@ -589,7 +589,7 @@ An agent that has generated a Python module would use OmniBridge like this:
 
 ## 14. Roadmap
 
-### v1.0 — Foundation (current)
+### v1.0 — Foundation
 
 - Docker + gVisor sandbox lifecycle management
 - Five core tools: `sandbox_create`, `sandbox_exec`, `sandbox_write_file`, `sandbox_diff`, `sandbox_destroy`
@@ -598,7 +598,7 @@ An agent that has generated a Python module would use OmniBridge like this:
 - TTL watchdog for automatic cleanup
 - Per-container resource limits
 
-### v1.1 — Pipeline Integration
+### v1.1 — Pipeline Integration (current)
 
 - A `receipt_chain` primitive that links multiple `sandbox_exec` receipts into a single verifiable execution graph, suitable for multi-step deployment workflows.
 - A native GitHub Actions integration that posts the receipt chain as a workflow artifact.

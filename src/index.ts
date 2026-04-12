@@ -63,6 +63,24 @@ async function startHttpTransport() {
     });
   });
 
+  // ── AUTHENTICATION ────────────────────────────────────────
+  const authToken = process.env.MCP_AUTH_TOKEN;
+  if (authToken) {
+    console.error("[OmniBridge] Bearer Token authentication enabled.");
+    app.use("/mcp", (req, res, next) => {
+      const authHeader = req.headers.authorization;
+      if (authHeader !== `Bearer ${authToken}`) {
+        console.error(`[OmniBridge] Blocked unauthorized request from ${req.ip}`);
+        return res.status(401).json({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "Unauthorized: Invalid or missing Bearer token." },
+          id: null,
+        });
+      }
+      next();
+    });
+  }
+
   // ── POST /mcp — Main request handler ──────────────────────
   app.post("/mcp", async (req: Request, res: Response) => {
     const sessionId = req.headers["mcp-session-id"] as string | undefined;
