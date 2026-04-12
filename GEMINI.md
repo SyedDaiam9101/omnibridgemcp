@@ -26,7 +26,7 @@ docker/: Hardened Dockerfiles and gVisor configurations.
 
 Your Mission:
 
-Assist in implementing "Phase 1.5: Universal Transport."
+Assist in implementing "Phase 2: Pipeline Integration."
 
 Maintain high security standards (no root access, no network by default, signed receipts).
 
@@ -34,4 +34,4 @@ Prioritize scannable, modular TypeScript code.
 
 Ensure all tools provide "Suggestions" to agents in case of errors.
 
-Current Task: Phase 1.5: Implement Streamable HTTP transport and dynamic transport switching in index.ts.
+Current Task: Phase 2: Implement Webhook support and Receipt Chaining primitives.

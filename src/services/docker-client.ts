@@ -1,3 +1,4 @@
+import { createDockerInstance } from '../utils/docker-init.js';
 import Docker from 'dockerode';
 import { AttestationService } from './attestation-service.js';
 import { DockerExecutionOptions, DockerExecutionResult } from '../schemas/docker-schema.js';
@@ -9,7 +10,7 @@ export class DockerClient {
   private attestationService: AttestationService;
 
   constructor() {
-    this.docker = new Docker();
+    this.docker = createDockerInstance();
     this.attestationService = new AttestationService();
   }
 
@@ -53,18 +54,46 @@ export class DockerClient {
    */
   public async createSandbox(image: string, env?: Record<string, string>): Promise<string> {
     try {
+      // 10x Refinement: Respect .env resource limits
+      const memoryLimitStr = process.env.CONTAINER_MEMORY_LIMIT || '512m';
+      const cpuLimit = parseFloat(process.env.CONTAINER_CPU_LIMIT || '1.0');
+
+      // 10x Move: Auto-pull missing images
+      const images = await this.docker.listImages();
+      const hasImage = images.some(i => i.RepoTags?.includes(image));
+      
+      if (!hasImage) {
+        console.error(`[Docker] Image ${image} not found. Pulling...`);
+        // Note: docker.pull returns a stream that we need to drain
+        const stream = await this.docker.pull(image);
+        await new Promise((resolve, reject) => {
+          this.docker.modem.followProgress(stream, (err, res) => err ? reject(err) : resolve(res));
+        });
+        console.error(`[Docker] Successfully pulled ${image}`);
+      }
+
+      // Simple memory parser: assumes bytes if no suffix, or handles 'm' for megabytes
+      let memoryBytes = 512 * 1024 * 1024;
+      if (memoryLimitStr.endsWith('m')) {
+        memoryBytes = parseInt(memoryLimitStr) * 1024 * 1024;
+      } else if (memoryLimitStr.endsWith('g')) {
+        memoryBytes = parseInt(memoryLimitStr) * 1024 * 1024 * 1024;
+      } else {
+        memoryBytes = parseInt(memoryLimitStr);
+      }
+
       const container = await this.docker.createContainer({
         Image: image,
         Cmd: ['tail', '-f', '/dev/null'],
         Env: env ? Object.entries(env).map(([k, v]) => `${k}=${v}`) : [],
         NetworkDisabled: true,
         User: '1000:1000',
-        Labels: { 'omnibridge-sandbox': 'true' }, // Helps with reaper/ghost cleanup
+        Labels: { 'omnibridge-sandbox': 'true' },
         HostConfig: {
-          Runtime: 'runsc', // Security Moat: gVisor
+          Runtime: process.env.DOCKER_RUNTIME || 'runsc', // Default to runsc for prod security
           AutoRemove: true,
-          Memory: 512 * 1024 * 1024,
-          NanoCpus: 1000000000,
+          Memory: memoryBytes,
+          NanoCpus: cpuLimit * 1000000000,
         },
       });
 

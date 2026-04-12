@@ -1,3 +1,4 @@
+import { createDockerInstance } from '../utils/docker-init.js';
 import Docker from 'dockerode';
 
 export interface Session {
@@ -15,7 +16,7 @@ export class SessionStore {
   private reaperTimer?: NodeJS.Timeout;
 
   constructor() {
-    this.docker = new Docker();
+    this.docker = createDockerInstance();
     // 10x Move: Cleanup ghosts from previous crashes before starting
     this.cleanupGhostContainers();
     this.startReaper();
