@@ -5,4 +5,4 @@ dist/
 .gemini/
 .DS_Store
 *.js.map
-*.d.ts
+*.d.ts

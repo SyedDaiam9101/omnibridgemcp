@@ -1,3 +1,4 @@
+import "dotenv/config";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createMcpExpressApp } from "@modelcontextprotocol/sdk/server/express.js";
@@ -49,6 +50,18 @@ async function startHttpTransport() {
 
   // createMcpExpressApp provides DNS rebinding protection out of the box
   const app = createMcpExpressApp();
+
+  // ── ROOT / — Quick status check ──────────────────────────
+  app.get("/", (req: Request, res: Response) => {
+    res.json({
+      project: "OmniBridge",
+      status: "Execution Layer Online",
+      version: "1.0.0",
+      transport: "Streamable HTTP",
+      mcp_endpoint: "/mcp",
+      security: "HMAC-SHA256 Attestation Active",
+    });
+  });
 
   // ── POST /mcp — Main request handler ──────────────────────
   app.post("/mcp", async (req: Request, res: Response) => {
