@@ -6,6 +6,7 @@
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@types/dockerode": "^4.0.1",
     "@types/node": "^25.6.0",
+    "better-sqlite3": "^12.9.0",
     "dockerode": "^4.0.10",
     "dotenv": "^17.4.1",
     "tar-stream": "^3.1.8",
@@ -15,11 +16,14 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
-    "test:integration": "start-server-and-test start http://localhost:3000/ 'node scripts/test-phase2.cjs'",
+    "test:integration": "MCP_TRANSPORT=http start-server-and-test start http://localhost:3000/ 'node scripts/test-phase2.cjs'",
+    "test:phase3": "node scripts/test-phase3.cjs",
+    "test:all": "npm run test:integration && npm run test:phase3",
     "dev": "tsc --watch",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
     "@types/tar-stream": "^3.1.4",
     "start-server-and-test": "^2.1.5",

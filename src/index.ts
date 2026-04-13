@@ -7,15 +7,35 @@ import type { Request, Response } from "express";
 import { randomUUID } from "crypto";
 import { createOmniBridgeServer } from "./server.js";
 
+// Services
+import { DatabaseService } from "./services/database-service.js";
+import { SandboxManager } from "./services/sandbox-manager.js";
+import { AttestationService } from "./services/attestation-service.js";
+import { WebhookService } from "./services/webhook-service.js";
+import { ChainService } from "./services/chain-service.js";
+
+let dbService: DatabaseService;
+let sandboxManager: SandboxManager;
+let attestationService: AttestationService;
+let webhookService: WebhookService;
+let chainService: ChainService;
+
 /**
- * OmniBridge Entrypoint — Phase 1.5: Universal Transport
+ * OmniBridge Entrypoint — Phase 3: Persistence and Reliability
  *
  * Detects the transport mode at boot and connects the server factory
- * to either stdio (for local IDEs) or Streamable HTTP (for cloud agents).
- * The tool logic remains 100% transport-agnostic.
+ * Initialize Database and Singletons before serving.
  */
 async function main() {
   const transportMode = process.env.MCP_TRANSPORT || "stdio";
+
+  dbService = new DatabaseService();
+  sandboxManager = new SandboxManager(dbService);
+  attestationService = new AttestationService();
+  webhookService = new WebhookService(dbService);
+  chainService = new ChainService(attestationService, dbService);
+
+  webhookService.start();
 
   if (transportMode === "stdio") {
     await startStdioTransport();
@@ -27,13 +47,29 @@ async function main() {
     );
     process.exit(1);
   }
+
+  // Graceful shutdown handling
+  const shutdown = async () => {
+    console.error("[OmniBridge] Shutting down services...");
+    webhookService.stop();
+    dbService.close();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", shutdown);
+  process.on("SIGTERM", shutdown);
 }
 
 // ─────────────────────────────────────────────────────────────
 // STDIO TRANSPORT — for Claude Desktop, Cursor, local IDEs
 // ─────────────────────────────────────────────────────────────
 async function startStdioTransport() {
-  const server = await createOmniBridgeServer();
+  const server = await createOmniBridgeServer(
+    sandboxManager,
+    attestationService,
+    webhookService,
+    chainService
+  );
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("[OmniBridge] Started via stdio transport");
@@ -56,7 +92,7 @@ async function startHttpTransport() {
     res.json({
       project: "OmniBridge",
       status: "Execution Layer Online",
-      version: "1.0.0",
+      version: "1.2.0",
       transport: "Streamable HTTP",
       mcp_endpoint: "/mcp",
       security: "HMAC-SHA256 Attestation Active",
@@ -111,8 +147,13 @@ async function startHttpTransport() {
           }
         };
 
-        // Each session gets its own server instance with fresh tool registrations
-        const server = await createOmniBridgeServer();
+        // Each session gets its own server instance but shares global services
+        const server = await createOmniBridgeServer(
+          sandboxManager,
+          attestationService,
+          webhookService,
+          chainService
+        );
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);
         return;
@@ -174,24 +215,6 @@ async function startHttpTransport() {
       `[OmniBridge] Started via Streamable HTTP on port ${port} (POST /mcp)`
     );
   });
-
-  // ── Graceful shutdown ─────────────────────────────────────
-  const shutdown = async () => {
-    console.error("[OmniBridge] Shutting down HTTP transport...");
-    for (const sid of Object.keys(transports)) {
-      try {
-        await transports[sid].close();
-        delete transports[sid];
-      } catch (e) {
-        // Best-effort cleanup
-      }
-    }
-    console.error("[OmniBridge] HTTP shutdown complete.");
-    process.exit(0);
-  };
-
-  process.on("SIGINT", shutdown);
-  process.on("SIGTERM", shutdown);
 }
 
 // ─────────────────────────────────────────────────────────────

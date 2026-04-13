@@ -2,6 +2,7 @@ import { DockerExecutionOptions, DockerExecutionResult } from '../schemas/docker
 import { SandboxCreateOptions } from '../schemas/sandbox.schemas.js';
 import { DockerClient } from './docker-client.js';
 import { SessionStore } from './session-store.js';
+import { DatabaseService } from './database-service.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,16 +13,17 @@ export class SandboxManager {
   private dockerClient: DockerClient;
   private sessionStore: SessionStore;
 
-  constructor() {
+  constructor(dbService: DatabaseService) {
     this.dockerClient = new DockerClient();
-    this.sessionStore = new SessionStore();
+    this.sessionStore = new SessionStore(dbService);
   }
 
   public async create(options: SandboxCreateOptions): Promise<string> {
     const sessionId = randomUUID();
     const containerId = await this.dockerClient.createSandbox(options.image, options.env);
     
-    this.sessionStore.registerSession(sessionId, containerId);
+    const ttlSeconds = options.ttlSeconds || 120;
+    this.sessionStore.registerSession(sessionId, containerId, ttlSeconds);
     return sessionId;
   }
 
@@ -55,8 +57,7 @@ export class SandboxManager {
   public async destroy(sessionId: string): Promise<void> {
     const session = this.sessionStore.getSession(sessionId);
     if (session) {
-      await this.dockerClient.stopSandbox(session.containerId);
-      // SessionStore will prune it if reaper didn't or we can manually clean it
+      await this.sessionStore.prune(sessionId, session.containerId);
     }
   }
-}
+}

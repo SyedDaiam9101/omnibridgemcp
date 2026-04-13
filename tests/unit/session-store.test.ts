@@ -1,20 +1,24 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SessionStore } from '../../src/services/session-store.js';
+import { DatabaseService } from '../../src/services/database-service.js';
 
 describe('SessionStore', () => {
   let store: SessionStore;
+  let dbService: DatabaseService;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    store = new SessionStore();
+    dbService = new DatabaseService(':memory:');
+    store = new SessionStore(dbService);
   });
 
   afterEach(() => {
+    dbService.close();
     vi.useRealTimers();
   });
 
   it('should register and retrieve a session', () => {
-    store.registerSession('s1', 'c1');
+    store.registerSession('s1', 'c1', 120);
     const session = store.getSession('s1');
     
     expect(session).toBeDefined();
@@ -26,7 +30,7 @@ describe('SessionStore', () => {
   });
 
   it('should update lastAccessedAt when session is retrieved', () => {
-    store.registerSession('s1', 'c1');
+    store.registerSession('s1', 'c1', 120);
     const s1 = store.getSession('s1')!;
     const firstAccess = s1.lastAccessedAt;
     
@@ -36,3 +40,4 @@ describe('SessionStore', () => {
     expect(s2.lastAccessedAt).toBeGreaterThan(firstAccess);
   });
 });
+

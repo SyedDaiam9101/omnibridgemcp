@@ -13,21 +13,18 @@ import { ChainService } from "./services/chain-service.js";
  * 10x Move: We centralize initialization to ensure consistency across
  * different transport modes (stdio vs HTTP).
  *
- * Phase 2: Now wires WebhookService and ChainService into the pipeline.
+ * Phase 3: Now wires pre-initialized services to avoid multiple background workers.
  */
-export async function createOmniBridgeServer() {
+export async function createOmniBridgeServer(
+  sandboxManager: SandboxManager,
+  attestationService: AttestationService,
+  webhookService: WebhookService,
+  chainService: ChainService
+) {
   const server = new McpServer({
     name: "OmniBridge",
-    version: "1.0.0",
+    version: "1.2.0",
   });
-
-  // Core services
-  const sandboxManager = new SandboxManager();
-  const attestationService = new AttestationService();
-
-  // Phase 2: Pipeline services
-  const webhookService = new WebhookService();
-  const chainService = new ChainService(attestationService);
 
   // Register tools
   registerSandboxTools(server, sandboxManager, webhookService, chainService);
@@ -36,4 +33,4 @@ export async function createOmniBridgeServer() {
   registerChainTools(server, chainService);
 
   return server;
-}
+}

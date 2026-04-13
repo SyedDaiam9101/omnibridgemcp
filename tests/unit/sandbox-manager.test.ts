@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SandboxManager } from '../../src/services/sandbox-manager.js';
+import { DatabaseService } from '../../src/services/database-service.js';
 
 vi.mock('../../src/services/docker-client.js', () => {
   return {
@@ -13,10 +14,16 @@ vi.mock('../../src/services/docker-client.js', () => {
 
 describe('SandboxManager', () => {
   let manager: SandboxManager;
+  let dbService: DatabaseService;
 
   beforeEach(() => {
     vi.clearAllMocks();
-    manager = new SandboxManager();
+    dbService = new DatabaseService(':memory:');
+    manager = new SandboxManager(dbService);
+  });
+
+  afterEach(() => {
+    dbService.close();
   });
 
   it('should create a session and return sessionId', async () => {
