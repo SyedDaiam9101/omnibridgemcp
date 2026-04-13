@@ -637,13 +637,13 @@ An agent that has generated a Python module would use OmniBridge like this:
 - TTL watchdog for automatic cleanup
 - Per-container resource limits
 
-### v1.1 — Pipeline Integration (current)
+### v1.1 — Pipeline Integration 
 
 - A `receipt_chain` primitive that links multiple `sandbox_exec` receipts into a single verifiable execution graph, suitable for multi-step deployment workflows.
 - A native GitHub Actions integration that posts the receipt chain as a workflow artifact.
 - Webhook support so receipts are forwarded to an external audit endpoint at the moment of issuance.
 
-### v1.2 — Enterprise Auth
+### v1.2 — Enterprise Auth (current)
 
 - OAuth 2.1 token validation for the HTTP transport, allowing enterprise SSO systems to control which agents can create sandboxes.
 - Scoped permissions: operators can restrict individual OAuth clients to specific images or TTL limits.
