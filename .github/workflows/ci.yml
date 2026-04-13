@@ -11,6 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     env:
       DOCKER_RUNTIME: runc
+      ATTESTATION_SECRET: test-attestation-secret-for-ci-only
+      OAUTH_ISSUER: urn:omnibridge:test
+      OAUTH_AUDIENCE: urn:omnibridge:api
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
@@ -20,4 +23,49 @@ jobs:
           cache: 'npm'
       - run: npm install
       - run: npm run build
-      - run: npm run test:all
+      
+      # Generate mock JWT for integration tests
+      - name: Generate Mock JWT
+        run: |
+          node -e "
+          const crypto = require('crypto');
+          const jose = require('jose');
+          
+          async function generate() {
+            const keys = crypto.generateKeyPairSync('rsa', {
+              modulusLength: 2048,
+              publicKeyEncoding: { type: 'spki', format: 'jwk' },
+              privateKeyEncoding: { type: 'pkcs8', format: 'jwk' },
+            });
+            
+            const jwkPrivate = await jose.importJWK(keys.privateKey, 'RS256');
+            
+            const token = await new jose.SignJWT({ client_id: 'test-client' })
+              .setProtectedHeader({ alg: 'RS256' })
+              .setIssuer('urn:omnibridge:test')
+              .setAudience('urn:omnibridge:api')
+              .setSubject('test-user')
+              .setExpirationTime('2h')
+              .sign(jwkPrivate);
+            
+            console.log('MOCK_JWK_PUB=' + JSON.stringify(keys.publicKey));
+            console.log('MCP_JWT=' + token);
+          }
+          
+          generate().catch(console.error);
+          " > jwt_env.txt
+          
+          # Export the environment variables
+          cat jwt_env.txt >> $GITHUB_ENV
+          
+      - name: Run Unit Tests
+        run: npm run test
+        
+      - name: Run Phase 3 Tests
+        run: npm run test:phase3
+        
+      - name: Run Integration Tests
+        run: npm run test:integration
+        env:
+          MOCK_JWK_PUB: ${{ env.MOCK_JWK_PUB }}
+          MCP_JWT: ${{ env.MCP_JWT }}
