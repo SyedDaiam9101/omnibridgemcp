@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { SandboxManager } from '../../src/services/sandbox-manager.js';
 import { DatabaseService } from '../../src/services/database-service.js';
+import { PolicyService } from '../../src/services/policy-service.js';
 
 vi.mock('../../src/services/docker-client.js', () => {
   return {
@@ -15,11 +16,13 @@ vi.mock('../../src/services/docker-client.js', () => {
 describe('SandboxManager', () => {
   let manager: SandboxManager;
   let dbService: DatabaseService;
+  let policyService: PolicyService;
 
   beforeEach(() => {
     vi.clearAllMocks();
     dbService = new DatabaseService(':memory:');
-    manager = new SandboxManager(dbService);
+    policyService = new PolicyService();
+    manager = new SandboxManager(dbService, policyService);
   });
 
   afterEach(() => {
@@ -38,5 +41,16 @@ describe('SandboxManager', () => {
       command: ['ls'], 
       image: 'node:20-slim' 
     } as any)).rejects.toThrow(/not found/);
+  });
+
+  it('should reject sandbox_exec image mismatch for an existing session', async () => {
+    const sessionId = await manager.create({ image: 'python:3.12-slim' as any, ttlSeconds: 60 });
+
+    await expect(manager.run({
+      sessionId,
+      image: 'node:20-slim',
+      command: ['echo', 'hi'],
+      workDir: '/tmp',
+    } as any)).rejects.toThrow(/image is locked/i);
   });
 });

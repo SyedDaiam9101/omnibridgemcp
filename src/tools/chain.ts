@@ -5,6 +5,8 @@ import {
   ChainGetSchema,
 } from "../schemas/chain.schemas.js";
 import { ChainService } from "../services/chain-service.js";
+import { ComplianceService } from "../services/compliance-service.js";
+import { z } from "zod";
 
 /**
  * Registers receipt chaining (DAG) tools with the MCP Server.
@@ -12,7 +14,8 @@ import { ChainService } from "../services/chain-service.js";
  */
 export function registerChainTools(
   server: McpServer,
-  chainService: ChainService
+  chainService: ChainService,
+  complianceService: ComplianceService
 ) {
   /**
    * chain_append: Manually append a signed receipt to the chain.
@@ -135,6 +138,38 @@ export function registerChainTools(
             {
               type: "text",
               text: `Chain Error: ${error.message}. Suggestion: Ensure the sessionId is valid.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+  );
+
+  /**
+   * audit_export_ocsf: Export the execution chain in SIEM-ready OCSF format.
+   */
+  server.tool(
+    "audit_export_ocsf",
+    "Export the full cryptographic execution chain mapped to the Open Cybersecurity Schema Framework (OCSF) format.",
+    { sessionId: z.string().describe("The ID of the session to export.") },
+    async (args) => {
+      try {
+        const events = complianceService.exportOcsf(args.sessionId);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(events, null, 2),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Export Error: ${error.message}. Suggestion: Ensure the sessionId is valid and has execution records.`,
             },
           ],
           isError: true,

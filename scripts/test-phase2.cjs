@@ -4,12 +4,19 @@
  */
 
 const MCP_URL = 'http://localhost:3000/mcp';
-const AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || 'agency_prod_7721_alpha';
+const JWT = process.env.MCP_JWT;
+
+if (!JWT) {
+  console.error(
+    "Missing MCP_JWT. Set MCP_JWT to a valid JWT for the server's configured issuer/JWKS."
+  );
+  process.exit(1);
+}
 
 const HEADERS = {
   'Content-Type': 'application/json',
   'Accept': 'application/json, text/event-stream',
-  'Authorization': `Bearer ${AUTH_TOKEN}`
+  'Authorization': `Bearer ${JWT}`
 };
 
 async function parseSSE(response) {

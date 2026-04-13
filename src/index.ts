@@ -13,12 +13,18 @@ import { SandboxManager } from "./services/sandbox-manager.js";
 import { AttestationService } from "./services/attestation-service.js";
 import { WebhookService } from "./services/webhook-service.js";
 import { ChainService } from "./services/chain-service.js";
+import { AuthService } from "./services/auth-service.js";
+import { PolicyService } from "./services/policy-service.js";
+import { ComplianceService } from "./services/compliance-service.js";
 
 let dbService: DatabaseService;
 let sandboxManager: SandboxManager;
 let attestationService: AttestationService;
 let webhookService: WebhookService;
 let chainService: ChainService;
+let authService: AuthService;
+let policyService: PolicyService;
+let complianceService: ComplianceService;
 
 /**
  * OmniBridge Entrypoint — Phase 3: Persistence and Reliability
@@ -30,10 +36,13 @@ async function main() {
   const transportMode = process.env.MCP_TRANSPORT || "stdio";
 
   dbService = new DatabaseService();
-  sandboxManager = new SandboxManager(dbService);
+  policyService = new PolicyService();
+  authService = new AuthService();
+  sandboxManager = new SandboxManager(dbService, policyService);
   attestationService = new AttestationService();
   webhookService = new WebhookService(dbService);
   chainService = new ChainService(attestationService, dbService);
+  complianceService = new ComplianceService(dbService);
 
   webhookService.start();
 
@@ -68,7 +77,8 @@ async function startStdioTransport() {
     sandboxManager,
     attestationService,
     webhookService,
-    chainService
+    chainService,
+    complianceService
   );
   const transport = new StdioServerTransport();
   await server.connect(transport);
@@ -100,22 +110,33 @@ async function startHttpTransport() {
   });
 
   // ── AUTHENTICATION ────────────────────────────────────────
-  const authToken = process.env.MCP_AUTH_TOKEN;
-  if (authToken) {
-    console.error("[OmniBridge] Bearer Token authentication enabled.");
-    app.use("/mcp", (req, res, next) => {
-      const authHeader = req.headers.authorization;
-      if (authHeader !== `Bearer ${authToken}`) {
-        console.error(`[OmniBridge] Blocked unauthorized request from ${req.ip}`);
-        return res.status(401).json({
-          jsonrpc: "2.0",
-          error: { code: -32001, message: "Unauthorized: Invalid or missing Bearer token." },
-          id: null,
-        });
-      }
+  app.use("/mcp", async (req, res, next) => {
+    // If strict JWT validation is meant for HTTP only
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "Unauthorized: Missing Bearer token." },
+        id: null,
+      });
+    }
+
+    const token = authHeader.replace("Bearer ", "");
+    try {
+      // 10x Governance: Swap static token for OAuth 2.1 JWT validation
+      const identity = await authService.verifyToken(token);
+      (req as any).clientId = identity.clientId;
+      (req as any).sub = identity.sub;
       next();
-    });
-  }
+    } catch (err: any) {
+      console.error(`[OmniBridge] Blocked unauthorized request from ${req.ip}: ${err.message}`);
+      return res.status(401).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: err.message },
+        id: null,
+      });
+    }
+  });
 
   // ── POST /mcp — Main request handler ──────────────────────
   app.post("/mcp", async (req: Request, res: Response) => {
@@ -148,11 +169,14 @@ async function startHttpTransport() {
         };
 
         // Each session gets its own server instance but shares global services
+        const clientId = (req as any).clientId as string;
         const server = await createOmniBridgeServer(
           sandboxManager,
           attestationService,
           webhookService,
-          chainService
+          chainService,
+          complianceService,
+          clientId
         );
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);

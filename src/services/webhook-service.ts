@@ -29,7 +29,7 @@ export class WebhookService {
       INSERT INTO webhook_subscriptions (session_id, url, secret) VALUES (?, ?, ?)
     `).run(sessionId, url, secret || null);
 
-    console.log(`[WebhookService] Subscribed ${url} to session ${sessionId}`);
+    console.error(`[WebhookService] Subscribed ${url} to session ${sessionId}`);
   }
 
   public unsubscribe(sessionId: string, url: string): boolean {
@@ -38,7 +38,7 @@ export class WebhookService {
     `).run(sessionId, url);
 
     if (result.changes > 0) {
-      console.log(`[WebhookService] Unsubscribed ${url} from session ${sessionId}`);
+      console.error(`[WebhookService] Unsubscribed ${url} from session ${sessionId}`);
       return true;
     }
     return false;
@@ -88,7 +88,7 @@ export class WebhookService {
   // --- Worker Lifecycle ---
 
   public start() {
-    console.log("[WebhookWorker] Starting persistent retry queue...");
+    console.error("[WebhookWorker] Starting persistent retry queue...");
     // Initial process 
     this.processQueue().catch(console.error);
     // Recurring interval
@@ -100,7 +100,7 @@ export class WebhookService {
   }
 
   public stop() {
-    console.log("[WebhookWorker] Stopping gracefully...");
+    console.error("[WebhookWorker] Stopping gracefully...");
     if (this.workerTimer) {
       clearInterval(this.workerTimer);
     }
@@ -150,7 +150,7 @@ export class WebhookService {
           if (res.ok) {
             // Success
             this.dbService.db.prepare(`UPDATE webhook_queue SET status = 'DELIVERED', last_attempt = ? WHERE id = ?`).run(now.toISOString(), job.id);
-            console.log(`[WebhookWorker] Successfully delivered job ${job.id} to ${job.url}`);
+            console.error(`[WebhookWorker] Successfully delivered job ${job.id} to ${job.url}`);
           } else {
             throw new Error(`HTTP ${res.status}`);
           }

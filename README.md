@@ -32,6 +32,18 @@
 
 > **Prerequisites:** Docker Engine 24.0+, Node.js 20+, gVisor (`runsc`) on the host. For local dev without gVisor, use the dev override — see [Deployment Guide](#12-deployment-guide).
 
+### 90-second Demo (Recommended)
+
+Runs an end-to-end demo (JWT auth + policy + sandbox exec + attestation verify + chain + OCSF export).
+
+```bash
+npm install
+npm run build
+npm run demo
+```
+
+> **Note:** `npm run demo` requires Docker Desktop/Engine running. If you’re using Claude Desktop, you can also skip the demo script and just connect via `stdio`.
+
 ```bash
 # 1. Clone and install
 git clone https://github.com/SyedDaiam9101/omnibridgemcp.git
@@ -40,7 +52,7 @@ npm install && npm run build
 
 # 2. Configure
 cp .env.example .env
-# Set HMAC_SECRET to a random string of 32+ characters in .env
+# Set ATTESTATION_SECRET to a random string of 32+ characters in .env
 
 # 3. Add to Claude Desktop (stdio mode)
 # In claude_desktop_config.json:
@@ -50,17 +62,18 @@ cp .env.example .env
       "command": "node",
       "args": ["/path/to/omnibridgemcp/dist/index.js"],
       "env": { 
-        "HMAC_SECRET": "your-secret-key-here",
+        "ATTESTATION_SECRET": "your-secret-key-here",
         "CONTAINER_MEMORY_LIMIT": "512m",
         "CONTAINER_CPU_LIMIT": "1.0",
-        "DOCKER_RUNTIME": "runc" 
+        "DOCKER_RUNTIME": "runc",
+        "DOCKER_SOCKET_PATH": "//./pipe/dockerDesktopLinuxEngine"
       }
     }
   }
 }
 
 # 4. Or run as an HTTP server (cloud agents)
-MCP_TRANSPORT=http PORT=3000 HMAC_SECRET=your-secret node dist/index.js
+MCP_TRANSPORT=http PORT=3000 ATTESTATION_SECRET=your-secret node dist/index.js
 ```
 
 Once connected, your agent can call `sandbox_create` → `sandbox_exec` → `sandbox_destroy`. Every `sandbox_exec` returns a signed receipt alongside the output.
@@ -284,20 +297,15 @@ Every `sandbox_exec` response includes an **HMAC-SHA256 signed receipt** alongsi
 
 | Field          | Description                                                      |
 | -------------- | ---------------------------------------------------------------- |
-| `session_id`   | The sandbox session this execution belongs to                    |
-| `command_hash` | SHA-256 of the exact command string that was executed            |
-| `image_digest` | The pinned SHA256 digest of the Docker image (not just its tag)  |
-| `stdout_hash`  | SHA-256 of the complete stdout output                            |
-| `stderr_hash`  | SHA-256 of the complete stderr output                            |
-| `exit_code`    | The process exit code                                            |
-| `started_at`   | ISO 8601 timestamp of execution start                            |
-| `duration_ms`  | Wall-clock duration of the execution                             |
-| `server_id`    | Identifier of the OmniBridge instance that produced this receipt |
-| `signature`    | HMAC-SHA256 of all above fields in canonical JSON order          |
+| `containerId`  | Docker container ID used for the execution                       |
+| `image`        | Image tag for the session runtime (e.g. `python:3.12-slim`)       |
+| `stdoutHash`   | SHA-256 hex digest of the complete stdout output                 |
+| `exitCode`     | The process exit code                                            |
+| `timestamp`    | ISO 8601 timestamp of execution completion                       |
 
 **What the receipt tells a reviewer:**
 
-Did the agent actually run this code, or is it claiming to? Was the code run against a known, approved image? Did the output match what the agent reported? Each receipt is independently verifiable by anyone with the HMAC key — useful for post-incident review, CI gates, and team audit logs.
+Did the agent actually run code in a sandbox, or is it claiming to? Did the stdout match what the agent reported? Each receipt is independently verifiable by anyone with the HMAC key — useful for CI gates, audit logs, and post-incident review.
 
 ---
 
@@ -307,7 +315,7 @@ OmniBridge exposes five tools to MCP clients.
 
 ### `sandbox_create`
 
-Creates a new ephemeral sandbox container and returns a `session_id` for use in subsequent calls.
+Creates a new ephemeral sandbox container and returns a `sessionId` for use in subsequent calls.
 
 **Parameters:**
 
@@ -315,10 +323,9 @@ Creates a new ephemeral sandbox container and returns a `session_id` for use in 
 | ------------- | ------ | ---------------- | ---------------------------------------------------------------------------------------------------- |
 | `image`       | string | `"node:20-slim"` | The Docker image to use. Must be one of the allowed images defined in server config.                 |
 | `env`         | object | `{}`             | Environment variables to inject into the container. Values are not logged.                           |
-| `ttl_seconds` | number | `120`            | Lifetime of the container in seconds. Maximum is 600.                                                |
-| `network`     | string | `"none"`         | Network mode. Options: `"none"` (default, recommended) or `"outbound"` (requires operator approval). |
+| `ttlSeconds`  | number | `120`            | Lifetime of the container in seconds. Maximum is 600.                                                |
 
-**Returns:** A `session_id` string that must be passed to all subsequent tool calls for this sandbox session.
+**Returns:** `{ "sessionId": "..." }`
 
 **Annotations:** `destructiveHint: false`, `readOnlyHint: false`, `idempotentHint: false`
 
@@ -328,16 +335,20 @@ Creates a new ephemeral sandbox container and returns a `session_id` for use in 
 
 Executes a shell command inside an existing sandbox. Always returns both the command output and a signed receipt.
 
+**Note:** The runtime image is fixed when the session is created via `sandbox_create`. Passing a different `image` value to `sandbox_exec` will be rejected — create a new sandbox session to switch runtimes.
+
 **Parameters:**
 
 | Parameter     | Type   | Default        | Description                                                                |
 | ------------- | ------ | -------------- | -------------------------------------------------------------------------- |
-| `session_id`  | string | required       | The session ID from `sandbox_create`.                                      |
-| `command`     | string | required       | The shell command to execute. Run as a non-root user inside the container. |
-| `timeout_ms`  | number | `10000`        | Maximum execution time before the process is killed. Maximum is 60000.     |
-| `working_dir` | string | `"/workspace"` | Working directory inside the container.                                    |
+| `sessionId`   | string   | required     | The session ID from `sandbox_create`.                                      |
+| `command`     | string[] | required     | Command + args to execute (array form).                                    |
+| `timeoutMs`   | number   | `30000`      | Hard timeout (1000–60000).                                                |
+| `workDir`     | string   | `"/workspace"` | Working directory inside the container.                                  |
+| `env`         | object   | optional     | Environment variables for the process only (not logged).                   |
+| `image`       | string   | optional     | Must match the session image; runtime cannot change mid-session.           |
 
-**Returns:** An object containing `stdout`, `stderr`, `exit_code`, and a nested `receipt` object (see Attestation section).
+**Returns:** An object containing `stdout`, `stderr`, `exitCode`, and an `attestation` block with `{ receipt, signature }`.
 
 **Annotations:** `destructiveHint: false`, `readOnlyHint: false`, `idempotentHint: false`
 
@@ -351,7 +362,7 @@ Writes a file into the container's workspace. Used to set up test fixtures, conf
 
 | Parameter    | Type   | Default  | Description                                                     |
 | ------------ | ------ | -------- | --------------------------------------------------------------- |
-| `session_id` | string | required | The session ID from `sandbox_create`.                           |
+| `sessionId`  | string | required | The session ID from `sandbox_create`.                           |
 | `path`       | string | required | Absolute path inside the container. Must be under `/workspace`. |
 | `content`    | string | required | UTF-8 text content to write.                                    |
 
@@ -369,9 +380,9 @@ Returns all filesystem changes made since the container started. This is the dep
 
 | Parameter    | Type   | Default  | Description                           |
 | ------------ | ------ | -------- | ------------------------------------- |
-| `session_id` | string | required | The session ID from `sandbox_create`. |
+| `sessionId`  | string | required | The session ID from `sandbox_create`. |
 
-**Returns:** A list of change records, each with a `kind` (`added`, `modified`, `deleted`) and an absolute `path`. Output files, generated artifacts, and side effects are all captured.
+**Returns:** Docker change records from `container.changes()` (useful for auditing what changed).
 
 **Annotations:** `destructiveHint: false`, `readOnlyHint: true`, `idempotentHint: true`
 
@@ -385,9 +396,9 @@ Explicitly destroys a sandbox before its TTL expires. Should always be called wh
 
 | Parameter    | Type   | Default  | Description                |
 | ------------ | ------ | -------- | -------------------------- |
-| `session_id` | string | required | The session ID to destroy. |
+| `sessionId`  | string | required | The session ID to destroy. |
 
-**Returns:** Confirmation with the destroyed `session_id` and actual lifetime in seconds.
+**Returns:** Confirmation message.
 
 **Annotations:** `destructiveHint: true`, `readOnlyHint: false`, `idempotentHint: true`
 
@@ -399,9 +410,10 @@ Verifies that a previously returned receipt is authentic and untampered. Designe
 
 **Parameters:**
 
-| Parameter | Type   | Default  | Description                                         |
-| --------- | ------ | -------- | --------------------------------------------------- |
-| `receipt` | object | required | The full receipt object returned by `sandbox_exec`. |
+| Parameter   | Type   | Default  | Description                                                         |
+| ----------- | ------ | -------- | ------------------------------------------------------------------- |
+| `receipt`   | object | required | The receipt object returned by `sandbox_exec` (`attestation.receipt`). |
+| `signature` | string | required | The companion signature returned by `sandbox_exec` (`attestation.signature`). |
 
 **Returns:** A verification result with `valid: true/false`, and if invalid, the specific field that failed validation.
 
@@ -415,7 +427,7 @@ OmniBridge is configured via environment variables and a `docker-compose.yml` fi
 
 ### Allowed Images
 
-The set of Docker images agents may request is defined in the environment, not hardcoded. If an agent requests an image not on the allowed list, `sandbox_create` returns an actionable error listing the permitted options. This prevents agents from pulling arbitrary images from the internet.
+Sandbox images are restricted by the tool schema and enforced again by tenant policy. If an agent requests an image not allowed for its client scope, `sandbox_create` returns an actionable error listing the permitted options. For multi-tenant allowlists and TTL caps, set `TENANT_POLICIES`.
 
 ### Resource Limits
 
@@ -423,27 +435,27 @@ Each container is created with explicit resource limits that operators can tune.
 
 ### HMAC Key Rotation
 
-The HMAC signing key can be rotated without downtime using the included `scripts/rotate-hmac-key.sh` script. The rotation process updates the environment variable on the running server and invalidates all receipts signed with the previous key. Receipts are intended to be verified at the time of issuance, not weeks later, so key rotation is a routine operational event.
+Rotate the signing key by restarting OmniBridge with a new `ATTESTATION_SECRET`. Receipts signed with the old key will no longer verify, so treat receipts as “verify at issuance time” artifacts and rotate keys as part of routine ops.
 
 ---
 
 ## 7. Environment Variables
 
-| Variable                  | Required | Default                                        | Description                                                                                                     |
-| ------------------------- | -------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `MCP_TRANSPORT`           | No       | `stdio`                                        | Set to `http` to enable Streamable HTTP mode.                                                                   |
-| `PORT`                    | No       | `3000`                                         | HTTP port when running in HTTP transport mode.                                                                  |
-| `HMAC_SECRET`             | Yes      | —                                              | HMAC-SHA256 signing key for audit receipts. Must be at least 32 characters. Never commit this value.            |
-| `SERVER_ID`               | No       | hostname                                       | Identifier embedded in receipts to identify the OmniBridge instance.                                            |
-| `ALLOWED_IMAGES`          | No       | `node:20-slim,python:3.12-slim,rust:1.78-slim` | Comma-separated list of Docker images agents may request.                                                       |
-| `DEFAULT_TTL_SECONDS`     | No       | `120`                                          | Default container lifetime if the agent does not specify one.                                                   |
-| `MAX_TTL_SECONDS`         | No       | `600`                                          | Hard ceiling on container lifetime. Agents cannot exceed this.                                                  |
-| `DEFAULT_EXEC_TIMEOUT_MS` | No       | `10000`                                        | Default command timeout in milliseconds.                                                                        |
-| `MAX_EXEC_TIMEOUT_MS`     | No       | `60000`                                        | Hard ceiling on command timeout.                                                                                |
-| `CONTAINER_MEMORY_LIMIT`  | No       | `512m`                                         | Docker memory limit per sandbox container.                                                                      |
-| `CONTAINER_CPU_LIMIT`     | No       | `1.0`                                          | Docker CPU quota per sandbox container (in cores).                                                              |
-| `NETWORK_MODE`            | No       | `none`                                         | Default network mode for new containers. Set to `bridge` to allow outbound access by default (not recommended). |
-| `LOG_LEVEL`               | No       | `info`                                         | Logging verbosity. Options: `debug`, `info`, `warn`, `error`. All logs go to stderr.                            |
+| Variable                 | Required   | Default           | Description                                                                 |
+| ------------------------ | ---------- | ----------------- | --------------------------------------------------------------------------- |
+| `MCP_TRANSPORT`          | No         | `stdio`           | Set to `http` to enable Streamable HTTP mode.                               |
+| `PORT`                   | No         | `3000`            | HTTP port when running in HTTP transport mode.                              |
+| `ATTESTATION_SECRET`     | Yes*       | (dev fallback)    | HMAC-SHA256 signing key for receipts. Required when `NODE_ENV=production`.  |
+| `DB_PATH`                | No         | `./omnibridge.db` | SQLite DB path for sessions, chain nodes, and webhook queue.                |
+| `CONTAINER_MEMORY_LIMIT` | No         | `512m`            | Docker memory limit per sandbox container.                                  |
+| `CONTAINER_CPU_LIMIT`    | No         | `1.0`             | Docker CPU quota per sandbox container (in cores).                          |
+| `DOCKER_RUNTIME`         | No         | `runsc`           | Container runtime (`runsc` recommended; `runc` for local dev/demo).          |
+| `DOCKER_SOCKET_PATH`     | No         | platform default  | Docker socket override (e.g. `//./pipe/dockerDesktopLinuxEngine` on Windows). |
+| `TENANT_POLICIES`        | No         | (none)            | JSON policy map: per-client allowed images + max TTL.                       |
+| `OAUTH_ISSUER`           | Yes (http) | (none)            | Expected JWT issuer when using HTTP transport.                              |
+| `OAUTH_AUDIENCE`         | No         | (none)            | Expected JWT audience when using HTTP transport.                            |
+| `OAUTH_JWKS_URL`         | No         | (none)            | Remote JWKS URL (preferred for real deployments).                           |
+| `MOCK_JWK_PUB`           | No         | (none)            | Testing-only public JWK JSON string (overrides `OAUTH_JWKS_URL`).            |
 
 ---
 
@@ -471,8 +483,8 @@ For Claude Desktop, add the following to `claude_desktop_config.json`:
     "omnibridge": {
       "command": "node",
       "args": ["/path/to/omnibridge/dist/index.js"],
-      "env": {
-        "HMAC_SECRET": "your-secret-key-here"
+      "env": { 
+        "ATTESTATION_SECRET": "your-secret-key-here"
       }
     }
   }
@@ -577,7 +589,7 @@ All tool errors follow the same structure: a human-readable `message` that descr
 
 gVisor is not required for local development. The `docker-compose.dev.yml` override uses the standard `runc` runtime. This is suitable for iterating on tool logic, but the security properties are weaker than production.
 
-To bring up the development environment, copy `.env.example` to `.env`, fill in a local `HMAC_SECRET`, and start the services with the dev override. OmniBridge will start in stdio mode by default.
+To bring up the development environment, copy `.env.example` to `.env`, fill in a local `ATTESTATION_SECRET`, and start the services with the dev override. OmniBridge will start in stdio mode by default.
 
 ### Production Deployment
 

@@ -4,6 +4,7 @@ import { AttestationService } from './attestation-service.js';
 import { DockerExecutionOptions, DockerExecutionResult } from '../schemas/docker-schema.js';
 import { Writable } from 'stream';
 import tar from 'tar-stream';
+import { createHash } from 'crypto';
 
 export class DockerClient {
   private docker: Docker;
@@ -42,7 +43,30 @@ export class DockerClient {
   public async getChanges(containerId: string) {
     const container = this.docker.getContainer(containerId);
     try {
-      return await container.changes();
+      const result: any = await container.changes();
+
+      // Some Dockerode/daemon combos can return raw buffers/strings; normalize.
+      if (Buffer.isBuffer(result)) {
+        const text = result.toString('utf8').trim();
+        if (text === '' || text === 'null') return [];
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { raw: text };
+        }
+      }
+
+      if (typeof result === 'string') {
+        const text = result.trim();
+        if (text === '' || text === 'null') return [];
+        try {
+          return JSON.parse(text);
+        } catch {
+          return { raw: text };
+        }
+      }
+
+      return result ?? [];
     } catch (error: any) {
       throw new Error(`Failed to fetch container changes: ${error.message}`);
     }
@@ -84,10 +108,10 @@ export class DockerClient {
 
       const container = await this.docker.createContainer({
         Image: image,
-        Cmd: ['tail', '-f', '/dev/null'],
+        Cmd: ['sh', '-lc', 'mkdir -p /workspace && chmod 777 /workspace && tail -f /dev/null'],
+        WorkingDir: '/workspace',
         Env: env ? Object.entries(env).map(([k, v]) => `${k}=${v}`) : [],
         NetworkDisabled: true,
-        User: '1000:1000',
         Labels: { 'omnibridge-sandbox': 'true' },
         HostConfig: {
           Runtime: process.env.DOCKER_RUNTIME || 'runsc', // Default to runsc for prod security
@@ -100,7 +124,20 @@ export class DockerClient {
       await container.start();
       return container.id;
     } catch (error: any) {
-      throw new Error(`Failed to create sandbox: ${error.message}`);
+      const raw = String(error?.message || error);
+      const hints: string[] = [];
+
+      if (raw.includes('permission denied while trying to connect')) {
+        hints.push('Docker Desktop is running but this user cannot access the Docker named pipe (add your Windows user to the docker-users group, then log out/in).');
+      }
+
+      // Docker Desktop can expose multiple pipes; some setups need the Linux engine pipe explicitly.
+      if (process.platform === 'win32') {
+        hints.push('On Windows/Docker Desktop, try setting DOCKER_SOCKET_PATH=//./pipe/dockerDesktopLinuxEngine in your MCP server env and restart Claude Desktop.');
+      }
+
+      const suffix = hints.length ? ` Suggestion: ${hints.join(' ')}` : '';
+      throw new Error(`Failed to create sandbox: ${raw}.${suffix}`);
     }
   }
 
@@ -113,11 +150,14 @@ export class DockerClient {
     let stdout = '';
     let stderr = '';
     let exitCode = -1;
+    const image = options.image || 'UNKNOWN';
 
     try {
       const exec = await container.exec({
         Cmd: options.command,
         WorkingDir: options.workDir,
+        User: '1000:1000',
+        Env: options.env ? Object.entries(options.env).map(([k, v]) => `${k}=${v}`) : undefined,
         AttachStdout: true,
         AttachStderr: true,
       });
@@ -153,10 +193,10 @@ export class DockerClient {
     }
 
     // Sign Attestation
-    const attestationData = {
+    const attestationReceipt = {
       containerId,
-      image: options.image,
-      stdoutHash: this.attestationService.signReceipt(stdout),
+      image,
+      stdoutHash: createHash('sha256').update(stdout).digest('hex'),
       exitCode,
       timestamp: new Date().toISOString(),
     };
@@ -166,9 +206,10 @@ export class DockerClient {
       stderr,
       exitCode,
       attestation: {
-        receipt: this.attestationService.signReceipt(attestationData),
-        timestamp: attestationData.timestamp,
-        imageDigest: options.image // V2: Fetch from container.inspect()
+        receipt: attestationReceipt,
+        signature: this.attestationService.signReceipt(attestationReceipt),
+        timestamp: attestationReceipt.timestamp,
+        imageDigest: image // V2: Fetch from container.inspect()
       }
     } as any;
   }
@@ -188,11 +229,24 @@ export class DockerClient {
       suggestion = "gVisor (runsc) is not installed on the host. Run 'scripts/install-gvisor.sh'.";
     }
 
+    const image = options.image || 'UNKNOWN';
+    const timestamp = new Date().toISOString();
     return {
       stdout: '',
       stderr: `Execution Error: ${error.message}`,
       exitCode: 124,
-      attestation: { receipt: 'ERROR', timestamp: new Date().toISOString(), imageDigest: options.image },
+      attestation: {
+        receipt: {
+          containerId: 'UNKNOWN',
+          image,
+          stdoutHash: '',
+          exitCode: 124,
+          timestamp,
+        },
+        signature: 'ERROR',
+        timestamp,
+        imageDigest: image,
+      },
       suggestions: suggestion
     };
   }
