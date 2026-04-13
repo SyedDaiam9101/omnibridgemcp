@@ -9,6 +9,8 @@ on:
 jobs:
   build_and_test:
     runs-on: ubuntu-latest
+    env:
+      DOCKER_RUNTIME: runc
     steps:
       - uses: actions/checkout@v4
       - name: Setup Node.js
