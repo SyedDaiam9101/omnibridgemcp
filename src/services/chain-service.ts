@@ -55,7 +55,7 @@ export class ChainService {
       createdAt
     );
 
-    console.log(
+    console.error(
       `[ChainService] Appended node #${sequence} to session ${sessionId} (hash: ${nodeHash.substring(0, 12)}...)`
     );
 

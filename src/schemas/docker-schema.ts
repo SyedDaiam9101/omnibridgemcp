@@ -8,8 +8,8 @@ export const DockerExecutionOptionsSchema = z.object({
   sessionId: z.string().describe("The active session ID"),
   
   image: z.enum(['node:20-slim', 'python:3.12-slim', 'rust:1.78-slim', 'alpine:latest'])
-    .default('node:20-slim')
-    .describe("The hardened runtime environment for execution"),
+    .optional()
+    .describe("Optional. Must match the image used by sandbox_create for this session; runtime cannot change mid-session."),
 
   command: z.array(z.string())
     .min(1)
@@ -44,7 +44,14 @@ export const DockerExecutionResultSchema = z.object({
 
   // The 'Attestation' block: Crucial for our 2026 Enterprise target
   attestation: z.object({
-    receipt: z.string(),
+    receipt: z.object({
+      containerId: z.string(),
+      image: z.string(),
+      stdoutHash: z.string(),
+      exitCode: z.number(),
+      timestamp: z.string(),
+    }),
+    signature: z.string(),
     timestamp: z.string(),
     imageDigest: z.string().describe("The immutable SHA of the image used")
   }),

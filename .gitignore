@@ -6,7 +6,9 @@ dist/
 .DS_Store
 *.js.map
 *.d.ts
-GEMINI.md
 *.db
 *.db-shm
 *.db-wal
+.claude/
+CLAUDE.md
+GEMINI.md

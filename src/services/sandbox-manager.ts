@@ -3,6 +3,7 @@ import { SandboxCreateOptions } from '../schemas/sandbox.schemas.js';
 import { DockerClient } from './docker-client.js';
 import { SessionStore } from './session-store.js';
 import { DatabaseService } from './database-service.js';
+import { PolicyService } from './policy-service.js';
 import { randomUUID } from 'crypto';
 
 /**
@@ -12,18 +13,27 @@ import { randomUUID } from 'crypto';
 export class SandboxManager {
   private dockerClient: DockerClient;
   private sessionStore: SessionStore;
+  private policyService: PolicyService;
 
-  constructor(dbService: DatabaseService) {
+  constructor(dbService: DatabaseService, policyService: PolicyService) {
     this.dockerClient = new DockerClient();
     this.sessionStore = new SessionStore(dbService);
+    this.policyService = policyService;
   }
 
-  public async create(options: SandboxCreateOptions): Promise<string> {
+  public async create(options: SandboxCreateOptions, clientId?: string): Promise<string> {
+    const ttlSeconds = options.ttlSeconds || 120;
+    
+    // Policy Enforcement
+    const validation = this.policyService.validateSandboxCreation(clientId || 'DEFAULT', options.image, ttlSeconds);
+    if (!validation.valid) {
+      throw new Error(`Policy Violation: ${validation.error}. Suggestion: ${validation.suggestion}`);
+    }
+
     const sessionId = randomUUID();
     const containerId = await this.dockerClient.createSandbox(options.image, options.env);
     
-    const ttlSeconds = options.ttlSeconds || 120;
-    this.sessionStore.registerSession(sessionId, containerId, ttlSeconds);
+    this.sessionStore.registerSession(sessionId, containerId, ttlSeconds, clientId, options.image);
     return sessionId;
   }
 
@@ -33,7 +43,23 @@ export class SandboxManager {
       throw new Error(`Session ${options.sessionId} not found or expired.`);
     }
 
-    return this.dockerClient.execInSandbox(session.containerId, options);
+    const effectiveImage = session.image || options.image;
+    if (!effectiveImage) {
+      throw new Error(
+        "Session image is unknown (older DB row). Create a new sandbox session to set the runtime image."
+      );
+    }
+
+    if (session.image && options.image && options.image !== session.image) {
+      throw new Error(
+        `Session image is locked to '${session.image}'. Requested '${options.image}'. Create a new sandbox session to change runtime.`
+      );
+    }
+
+    return this.dockerClient.execInSandbox(session.containerId, {
+      ...options,
+      image: effectiveImage,
+    });
   }
 
   public async writeFile(sessionId: string, path: string, content: string): Promise<void> {
@@ -60,4 +86,4 @@ export class SandboxManager {
       await this.sessionStore.prune(sessionId, session.containerId);
     }
   }
-}
+}

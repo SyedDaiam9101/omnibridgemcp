@@ -1,4 +1,5 @@
 import Docker from 'dockerode';
+import fs from 'fs';
 
 /**
  * 10x Refinement: Centralized Docker initialization. 
@@ -14,8 +15,22 @@ export function createDockerInstance(): Docker {
 
   // Default behavior based on Platform
   if (process.platform === 'win32') {
-    // Windows Named Pipe (Standard for Docker Desktop)
-    return new Docker({ socketPath: '//./pipe/docker_engine' });
+    // Windows Named Pipe (Docker Desktop)
+    // Prefer the Linux engine pipe when Docker Desktop is in "desktop-linux" mode.
+    // Fallback to the legacy docker_engine pipe for older installs / Windows engine.
+    const linuxEnginePipeFsPath = '\\\\.\\pipe\\dockerDesktopLinuxEngine';
+    const linuxEngineSocketPath = '//./pipe/dockerDesktopLinuxEngine';
+    const legacyEngineSocketPath = '//./pipe/docker_engine';
+
+    try {
+      if (fs.existsSync(linuxEnginePipeFsPath)) {
+        return new Docker({ socketPath: linuxEngineSocketPath });
+      }
+    } catch {
+      // ignore and fallback
+    }
+
+    return new Docker({ socketPath: legacyEngineSocketPath });
   } else {
     // Unix Socket (Standard for Linux/macOS/WSL)
     return new Docker({ socketPath: '/var/run/docker.sock' });

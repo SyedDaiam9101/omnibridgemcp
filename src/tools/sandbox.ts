@@ -16,7 +16,8 @@ export function registerSandboxTools(
   server: McpServer,
   sandboxManager: SandboxManager,
   webhookService: WebhookService,
-  chainService: ChainService
+  chainService: ChainService,
+  clientId?: string
 ) {
 
   /**
@@ -28,7 +29,7 @@ export function registerSandboxTools(
     SandboxCreateSchema.shape,
     async (args) => {
       try {
-        const sessionId = await sandboxManager.create(args);
+        const sessionId = await sandboxManager.create(args, clientId);
         return {
           content: [{ type: "text", text: JSON.stringify({ sessionId }, null, 2) }],
         };
@@ -83,8 +84,8 @@ export function registerSandboxTools(
           try {
             chainService.append(
               args.sessionId,
-              result.attestation,
-              result.attestation.receipt
+              result.attestation.receipt,
+              result.attestation.signature
             );
           } catch (chainError: any) {
             console.error(`[sandbox_exec] Chain append failed: ${chainError.message}`);

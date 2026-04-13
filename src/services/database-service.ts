@@ -82,6 +82,15 @@ export class DatabaseService {
         created_at TEXT NOT NULL,
         FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
       );
+      `,
+      // Version 2: Add client_id to sessions for Governance Phase
+      `
+      ALTER TABLE sessions ADD COLUMN client_id TEXT;
+      `
+      ,
+      // Version 3: Track session image to prevent runtime confusion/spoofing
+      `
+      ALTER TABLE sessions ADD COLUMN image TEXT;
       `
     ];
 
@@ -93,10 +102,10 @@ export class DatabaseService {
     migrations.forEach((sql, index) => {
       const targetVersion = index + 1;
       if (currentVersion < targetVersion) {
-        console.log(`[DatabaseService] Running migration v${targetVersion}...`);
+        console.error(`[DatabaseService] Running migration v${targetVersion}...`);
         try {
           runTransaction(targetVersion, sql);
-          console.log(`[DatabaseService] Migration v${targetVersion} applied successfully.`);
+          console.error(`[DatabaseService] Migration v${targetVersion} applied successfully.`);
         } catch (error: any) {
           console.error(`[DatabaseService] Migration v${targetVersion} failed: ${error.message}`);
           throw error;

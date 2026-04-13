@@ -1,10 +1,19 @@
 async function test() {
+  const jwt = process.env.MCP_JWT;
+  if (!jwt) {
+    console.error(
+      "Missing MCP_JWT. Set MCP_JWT to a valid JWT for the server's configured issuer/JWKS."
+    );
+    process.exit(1);
+  }
+
   console.log("Sending initialize request...");
   const devResponse = await fetch('http://localhost:3000/mcp', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json, text/event-stream'
+      'Accept': 'application/json, text/event-stream',
+      'Authorization': `Bearer ${jwt}`
     },
     body: JSON.stringify({
       jsonrpc: "2.0",

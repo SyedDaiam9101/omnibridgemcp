@@ -34,4 +34,4 @@ Prioritize scannable, modular TypeScript code.
 
 Ensure all tools provide "Suggestions" to agents in case of errors.
 
-Current Task: Phase 3: Implement SQLite backed persistence and Webhook Retry Queue.
+Current Task: Phase 3 (Part 2): Enterprise Governance (OAuth 2.1, Scoped Permissions, OCSF Logging).

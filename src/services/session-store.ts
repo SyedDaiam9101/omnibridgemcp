@@ -1,9 +1,12 @@
 import { createDockerInstance } from '../utils/docker-init.js';
 import Docker from 'dockerode';
 import { DatabaseService } from './database-service.js';
+import type { SandboxCreateOptions } from '../schemas/sandbox.schemas.js';
 
 export interface Session {
   id: string;
+  clientId?: string;
+  image?: SandboxCreateOptions['image'];
   containerId: string;
   totalTtl: number;
   createdAt: number;
@@ -47,7 +50,7 @@ export class SessionStore {
 
         if (!dbSession) {
           // Ghost container not in DB
-          console.log(`[Startup] Cleaning up untracked ghost container: ${containerInfo.Id}`);
+          console.error(`[Startup] Cleaning up untracked ghost container: ${containerInfo.Id}`);
           await this.docker.getContainer(containerInfo.Id).remove({ force: true }).catch(() => {});
           continue;
         }
@@ -58,7 +61,7 @@ export class SessionStore {
         const remainingTtlSeconds = dbSession.total_ttl - uptimeSeconds;
 
         if (remainingTtlSeconds < 10) {
-          console.log(`[Startup] Purging session ${dbSession.id}. Remaining TTL (${remainingTtlSeconds}s) < 10s.`);
+          console.error(`[Startup] Purging session ${dbSession.id}. Remaining TTL (${remainingTtlSeconds}s) < 10s.`);
           await this.prune(dbSession.id, dbSession.container_id);
           continue;
         }
@@ -78,7 +81,7 @@ export class SessionStore {
 
           await exec.start({});
           // If it didn't throw, we consider it healthy. 
-          console.log(`[Startup] Session ${dbSession.id} re-attached successfully. Remaining TTL: ${Math.floor(remainingTtlSeconds)}s`);
+          console.error(`[Startup] Session ${dbSession.id} re-attached successfully. Remaining TTL: ${Math.floor(remainingTtlSeconds)}s`);
         } catch (e) {
           console.warn(`[Startup] Session ${dbSession.id} failed health check. Purging.`);
           await this.prune(dbSession.id, dbSession.container_id);
@@ -89,7 +92,7 @@ export class SessionStore {
       const currentContainerIds = new Set(containers.map(c => c.Id));
       for (const dbSession of dbSessions) {
         if (!currentContainerIds.has(dbSession.container_id)) {
-          console.log(`[Startup] Cleaning up orphaned DB session: ${dbSession.id}`);
+          console.error(`[Startup] Cleaning up orphaned DB session: ${dbSession.id}`);
           this.dbService.db.prepare('DELETE FROM sessions WHERE id = ?').run(dbSession.id);
         }
       }
@@ -98,12 +101,19 @@ export class SessionStore {
     }
   }
 
-  public registerSession(id: string, containerId: string, ttlSeconds: number): void {
+  public registerSession(id: string, containerId: string, ttlSeconds: number, clientId?: string, image?: SandboxCreateOptions['image']): void {
     const now = Date.now();
     this.dbService.db.prepare(`
-      INSERT INTO sessions (id, container_id, total_ttl, created_at, last_accessed_at)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(id, containerId, ttlSeconds, new Date(now).toISOString(), now);
+      INSERT INTO sessions (id, container_id, total_ttl, created_at, last_accessed_at, client_id)
+      VALUES (?, ?, ?, ?, ?, ?)
+    `).run(id, containerId, ttlSeconds, new Date(now).toISOString(), now, clientId || null);
+
+    // Newer DBs also store the image; fall back safely if the column doesn't exist yet.
+    try {
+      this.dbService.db.prepare('UPDATE sessions SET image = ? WHERE id = ?').run(image || null, id);
+    } catch {
+      // ignore
+    }
   }
 
   public getSession(id: string): Session | undefined {
@@ -116,6 +126,8 @@ export class SessionStore {
 
     return {
       id: row.id,
+      clientId: row.client_id,
+      image: row.image as SandboxCreateOptions['image'] | undefined,
       containerId: row.container_id,
       totalTtl: row.total_ttl,
       createdAt: new Date(row.created_at).getTime(),
@@ -155,7 +167,7 @@ export class SessionStore {
    * Isolated prune logic to prevent loop blocking
    */
   public async prune(sessionId: string, containerId: string) {
-    console.log(`[Reaper] Pruning ${sessionId}`);
+    console.error(`[Reaper] Pruning ${sessionId}`);
     try {
       const container = this.docker.getContainer(containerId);
       await container.remove({ force: true });
@@ -167,7 +179,7 @@ export class SessionStore {
   }
 
   public async shutdown(): Promise<void> {
-    console.log("[Shutdown] Stopping session reaper...");
+    console.error("[Shutdown] Stopping session reaper...");
     if (this.reaperTimer) clearInterval(this.reaperTimer);
     // In Phase 3, we DO NOT remove containers on shutdown, so they can be re-attached on startup!
     // This is the entire point of persistence.
