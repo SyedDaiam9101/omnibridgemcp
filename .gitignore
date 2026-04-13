@@ -7,3 +7,6 @@ dist/
 *.js.map
 *.d.ts
 GEMINI.md
+*.db
+*.db-shm
+*.db-wal
