@@ -1,4 +1,3 @@
-const fetch = require('node-fetch');
 const Database = require('better-sqlite3');
 const path = require('path');
 
