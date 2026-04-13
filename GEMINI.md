@@ -34,4 +34,4 @@ Prioritize scannable, modular TypeScript code.
 
 Ensure all tools provide "Suggestions" to agents in case of errors.
 
-Current Task: Phase 2: Implement Webhook support and Receipt Chaining primitives.
+Current Task: Phase 3: Implement SQLite backed persistence and Webhook Retry Queue.
