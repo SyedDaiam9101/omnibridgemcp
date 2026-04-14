@@ -1,3 +1,4 @@
+![Recording 2026-04-14 075240](https://github.com/user-attachments/assets/1cfd9c27-09ad-43a9-b558-78715fba8848)
 <p align="center">
   <img src="https://github.com/SyedDaiam9101/omnibridgemcp/actions/workflows/ci.yml/badge.svg" alt="Build Status">
   <img src="https://img.shields.io/github/license/SyedDaiam9101/omnibridgemcp?style=for-the-badge" alt="License">
