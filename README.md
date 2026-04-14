@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/Recording%202026-04-14%20075240.gif" alt="OmniBridge Demo" width="800">
+  <img src="https://github.com/user-attachments/assets/1cfd9c27-09ad-43a9-b558-78715fba8848" alt="OmniBridge Demo" width="800">
 </p>
 
 <p align="center">
