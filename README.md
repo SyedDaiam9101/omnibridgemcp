@@ -19,6 +19,10 @@
 </p>
 
 <p align="center">
+  <img src="docs/Recording%202026-04-14%20075240.gif" alt="OmniBridge Demo" width="800">
+</p>
+
+<p align="center">
   <strong>MCP-compatible sandboxed execution layer for AI agents with tamper-evident audit receipts</strong>
 </p>
 
