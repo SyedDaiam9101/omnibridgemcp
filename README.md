@@ -48,6 +48,15 @@ npm run demo
 
 > **Note:** `npm run demo` requires Docker Desktop/Engine running. If you’re using Claude Desktop, you can also skip the demo script and just connect via `stdio`.
 
+### Global CLI Install
+
+Install globally and start with the onboarding command:
+
+```bash
+npm install -g @15syedd/omnibridge
+omnibridge onboard
+```
+
 ```bash
 # 1. Clone and install
 git clone https://github.com/SyedDaiam9101/omnibridgemcp.git
