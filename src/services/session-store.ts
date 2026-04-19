@@ -22,7 +22,7 @@ export class SessionStore {
   constructor(dbService: DatabaseService) {
     this.dbService = dbService;
     this.docker = createDockerInstance();
-    // 10x Move: We can't await in constructor, so we self-invoke the async init
+    //   We can't await in constructor, so we self-invoke the async init
     this.initialize();
   }
 
@@ -32,7 +32,7 @@ export class SessionStore {
   }
 
   /**
-   * 10x Feature: Reconcile Docker containers with SQLite state.
+   * Reconcile Docker containers with SQLite state.
    */
   private async reconcileState() {
     try {
