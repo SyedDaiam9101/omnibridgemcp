@@ -6,7 +6,7 @@ export class AttestationService {
   constructor() {
     const envSecret = process.env.ATTESTATION_SECRET;
 
-    // 10x Move: Fail-Fast. Don't let the server start in an insecure state.
+    // Fail-Fast. Don't let the server start in an insecure state.
     if (!envSecret && process.env.NODE_ENV === 'production') {
       throw new Error("FATAL: ATTESTATION_SECRET is required in production mode.");
     }
