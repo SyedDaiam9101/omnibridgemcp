@@ -11,8 +11,8 @@ import { ComplianceService } from "./services/compliance-service.js";
 
 /**
  * OmniBridge Server Factory
- * 10x Move: We centralize initialization to ensure consistency across
- * different transport modes (stdio vs HTTP).
+ * We centralize initialization to ensure consistency across
+ * transport modes (stdio vs HTTP).
  *
  * Phase 3: Now wires pre-initialized services to avoid multiple background workers.
  */
@@ -36,4 +36,4 @@ export async function createOmniBridgeServer(
   registerChainTools(server, chainService, complianceService);
 
   return server;
-}
+}
