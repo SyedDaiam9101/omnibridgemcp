@@ -7,7 +7,7 @@ import { PolicyService } from './policy-service.js';
 import { randomUUID } from 'crypto';
 
 /**
- * 10x Refinement: SandboxManager handles high-level container lifecycle 
+ * SandboxManager handles high-level container lifecycle 
  * orchestrating the SessionStore and the hardened DockerClient.
  */
 export class SandboxManager {
