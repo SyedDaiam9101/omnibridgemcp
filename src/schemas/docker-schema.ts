@@ -1,8 +1,7 @@
 import { z } from 'zod';
 
 /**
- * 10x REFINEMENT: 
- * We restrict images to an allowlist to prevent supply-chain attacks.
+ * Images are restricted to an allowlist to prevent supply-chain attacks.
  */
 export const DockerExecutionOptionsSchema = z.object({
   sessionId: z.string().describe("The active session ID"),
@@ -34,8 +33,7 @@ export const DockerExecutionOptionsSchema = z.object({
 export type DockerExecutionOptions = z.infer<typeof DockerExecutionOptionsSchema>;
 
 /**
- * 10x REFINEMENT:
- * We structure the result so the 'receipt' is clearly separated from the logs.
+ *  * The receipt is structured separately from command output for auditability.
  */
 export const DockerExecutionResultSchema = z.object({
   stdout: z.string(),
