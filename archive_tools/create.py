@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 def setup_omnibridge():
-    base_dir = Path(r"C:\Users\Admin\Documents\GitHub\omnibridgemcp")
+    base_dir = Path(r"YOUR_REPO_PATH")
     
     # Define the directory structure
     directories = [
