@@ -16,7 +16,7 @@ export class DockerClient {
   }
 
   /**
-   * 10x Move: Provision files via tar streams to avoid path-escaping bugs.
+   * Provision files via tar streams to avoid path-escaping bugs.
    */
   public async writeFile(containerId: string, filePath: string, content: string): Promise<void> {
     const container = this.docker.getContainer(containerId);
@@ -38,7 +38,7 @@ export class DockerClient {
   }
 
   /**
-   * 10x Move: Get filesystem changes for audit/diffing.
+   *  Get filesystem changes for audit/diffing.
    */
   public async getChanges(containerId: string) {
     const container = this.docker.getContainer(containerId);
@@ -73,7 +73,7 @@ export class DockerClient {
   }
 
   /**
-   * 10x Refinement: Creates a long-running, hardened sandbox container.
+   *Creates a long-running, hardened sandbox container.
    * We use 'tail -f /dev/null' to keep it alive while we exec commands into it.
    */
   public async createSandbox(image: string, env?: Record<string, string>): Promise<string> {
